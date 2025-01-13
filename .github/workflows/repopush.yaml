@@ -1,0 +1,73 @@
+name: Cleanup unnecessary files
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if this is the template repository
+        id: check_template
+        run: |
+          echo "This is the template repository- ${{ github.repository }}"
+
+      - name: Get action initiator's email
+        id: get_user_email
+        run: |
+          email=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/users/${{ github.actor }} | jq -r '.email')
+          if [ "$email" == "null" ]; then
+            email="${{ github.actor }}@users.noreply.github.com"
+          fi
+          echo "Email fetched: $email"  # This will print the email
+          echo "::set-output name=email::$email"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ steps.get_user_email.outputs.email }}"
+
+      - name: Check if repository exists
+        id: check_repo
+        run: |
+          repo_name="service-anuj-to-be-deleted-test"
+          if gh repo view "Anuj359/$repo_name" > /dev/null 2>&1; then
+            echo "Repository $repo_name already exists."
+            echo "repo_exists=true" >> $GITHUB_ENV
+          else
+            echo "Repository $repo_name does not exist."
+            echo "repo_exists=false" >> $GITHUB_ENV
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create repository if it doesn't exist
+        if: env.repo_exists == 'false'
+        env:
+          REPO_URL: https://github.com/Anuj359/service-anuj-to-be-deleted-test.git
+          GH_TOKEN: ${{ secrets.REPO_TEMPLATE }}  # Set GH_TOKEN for gh CLI authentication
+        run: |
+          rm -rf .git .gitattributes scripts .github/workflows/file-generation.yaml .github/workflows/gcp-sa.yaml .github/workflows/repo-generation.yaml .github/workflows/cleanup.yaml .github/workflows/file-repo-generation.yaml
+          echo "Repository creating is: service-anuj-to-be-deleted-test"
+          # Print the current working directory
+          echo "Current path is: $(pwd)"
+        
+          # Print the contents of the current filesystem
+          echo "Current file system is: "
+          ls -la; ls -lR
+          
+          git init
+          git remote add origin $REPO_URL
+          gh repo create service-anuj-to-be-deleted-test --private --source .
+          git status
+          git add .
+          git commit -m "Initial commit of service-anuj-to-be-deleted-test"
+          git push https://$GH_TOKEN@github.com/Anuj359/service-anuj-to-be-deleted-test.git master
